@@ -1,0 +1,34 @@
+# Course Overview
+
+Survey data is very useful for measuring complex economic and social issues like employment, expenditure, poverty, inequality, disability, etc. Direct or design-based estimation is a common and well-standardized practice at most National Statistical Offices (NSOs). Direct estimation simply consists of producing descriptive metrics (means, proportions, etc.) using the survey design (i.e., weights, clustering, poststratification).
+
+Direct estimation is very useful but it has its limitations. Surveys lack sampling power to produce these direct estimations for geographical or population domains with small samples or no samples at all. Furthermore, policymakers often need to link those constructs to their data but it is not clear when it is possible to do so.
+
+One solution that has gained popularity is using **indirect estimation**, also known as model-based estimation. Perhaps the most advanced field in indirect estimation is small-area estimation of poverty, health and inequality indicators. The idea is to use modeling to cover these information gaps. Indirect estimation uses a model to take advantage of available data to export observed relationships in a survey to an alternative dataset, so that the department of education can identify who is likely to be poor in their datasets without conducting a taxing measurement of income or expenditure.
+
+Although some postgraduate-level courses cover modeling and prediction, they rarely focus on out-of-sample estimation. Perhaps the most popular courses are on small-area estimation but these are not widespread globally as it is an area that has just started expanding. One problem with such courses is that indirect estimation requires very specialized knowledge and the available courses are far from introductory.
+
+An entry-level course that bridges some of the gaps to take further work on indirect estimation is likely to be helpful for NSOs. The purpose of this course is to introduce some of the basic ideas and programming skills that are needed to take direct and indirect estimation further.
+
+## Learning Objectives
+
+The main objective is to deliver a **16-hour course** to introduce the basic concepts and technical abilities needed for implementing design-based estimates and model-based estimation.
+
+Upon completion, participants should be capable of:
+
+1. Producing basic descriptive analysis using survey data
+2. Understanding the basic principles involved in direct and indirect estimation
+3. Implementing predictive models in-sample and out-of-sample
+4. Mapping variables of interest
+
+## Prerequisites
+
+- Basic knowledge of R, Stata, SPSS or Python
+- Basic courses on statistics or experience doing data analysis with microdata
+
+## Infrastructure Requirements
+
+- Internet connection
+- Personal laptop computers
+- R (https://www.r-project.org/)
+- RStudio (https://posit.co/download/rstudio-desktop/)
