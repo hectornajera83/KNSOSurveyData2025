@@ -200,6 +200,13 @@ sex_by_island <- svyby(~as_factor(sex), by = ~as_factor(island_group),
                        FUN = svymean, 
                        na.rm = TRUE)
 
+# With confidence intervasl
+sex_by_island_CI <- svyby(~as_factor(sex), by = ~as_factor(island_group), 
+                       design = design, 
+                       FUN = svymean, 
+                       vartype = "ci",
+                       na.rm = TRUE)
+
 # Display results
 print(sex_by_island)
 ```
