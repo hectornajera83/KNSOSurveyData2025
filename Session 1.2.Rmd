@@ -1,0 +1,288 @@
+---
+title: "Session 1.2"
+author: "Hector Najera"
+date: "2025-12-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. 
+
+## Remembering R objects
+
+## What is an Object in R?
+
+An object is a container that stores information. Think of it like a labeled box that holds something.
+
+---
+
+### 1. Storing a Single Number
+
+```{r}
+x <- 5
+x
+```
+
+We created an object called `x` that contains the number 5.
+
+---
+
+### 2. Storing Text
+
+```{r}
+name <- "Alice"
+name
+```
+
+We created an object called `name` that contains text.
+
+---
+
+### 3. Storing Multiple Numbers (Vector)
+
+```{r}
+ages <- c(25, 30, 35, 40)
+ages
+```
+
+We created an object called `ages` that contains 4 numbers.
+
+---
+
+### 4. Using Objects in Calculations
+
+```{r}
+a <- 10
+b <- 3
+result <- a + b
+result
+```
+
+We can use objects in math operations and store the result in a new object.
+
+---
+
+### 5. Storing a Table (Data Frame)
+
+```{r}
+people <- data.frame(
+  Name = c("Alice", "Bob", "Carol"),
+  Age = c(25, 30, 35),
+  City = c("New York", "Boston", "Chicago")
+)
+people
+```
+
+We created an object called `people` that contains a table with 3 columns and 3 rows.
+
+## Remembering functions and arguments in R
+
+Functions are formulas/algorithms that do things like calculating and average `mean()`, recode a variable `ifelse()` or `recode()`, combine files `left_join()`, run a model `lm()`
+
+Functions have **arguments**: the information that goes within brackets. Some functions have more or less complex arguments. 
+
+R works with functions which take the following form:
+
+`functionname()` 
+
+Within brackets we will have the arguments of a function. For example, the function mean will compute well... the mean of the vector X. 
+
+`mean(X)` 
+
+## Installing Required Packages
+
+Before we begin, we need to install the necessary packages. For example, here we use the function `install.packages()`. You only need to run this once:
+
+```{r install_packages, eval=FALSE}
+# Install packages (run this only once)
+# You might need to select a mirror for downloading the packages:
+
+options(repos = c(CRAN = "https://cloud.r-project.org/")) 
+install.packages("haven")
+install.packages("dplyr")
+install.packages("labelled")
+```
+
+## Loading Packages
+
+Now let's `load()` the packages we'll use for our analysis:
+
+```{r load_packages, message=FALSE, warning=FALSE}
+# Load required packages
+library(haven)      # For reading Stata files
+library(dplyr)      # For data manipulation
+library(labelled)   # For working with labeled data
+```
+
+## Loading Stata Files
+
+We'll load three Stata datasets: a profile dataset "p1_Profile.dta", a health dataset "p3_Health.dta" and "KIR_HH.dta". We will use the function `read_dta()` from the `haven` package. 
+
+```{r load_data}
+# Load Stata files
+D1 <- read_dta("p1_Profile.dta")
+D3 <- read_dta("p3_Health.dta")
+D4 <- read_dta("KIR_HH.dta")
+```
+
+# Exploring the Profile Dataset (D1)
+
+Let's examine the structure and labels of the profile dataset:
+
+```{r explore_d1}
+# View dataset dimensions
+nrow(D1)
+ncol(D1)
+
+# Display variable names
+names(D1)
+
+# Show structure with labels
+str(D1)
+
+# Display variable labels
+var_label(D1)
+
+# Preview first few rows
+head(D1)
+```
+
+## Creating variables and Recoding
+
+One of the most common tasks in data management is recoding/transforming variables. For example with the `dplyr` and **pipeline** code we can create a variable that categorises age groups: Creating a new age variable with three groups 0-15, 16-44, 45-64, 65+.
+
+There is a lot to unpack here:
+
+1. The package `dplyr()` uses the pipeline logic which is passing arguments sequentially. This is done with the symbol **%>%**. 
+2. What this is saying: For dataset D3 create a variable called `one` that is equal to `1`. `mutate` means that the dataset changes... mutates. 
+
+```{r}
+D3 <- D3 %>% mutate(one=1)
+```
+
+The above is the same as:
+
+```{r}
+D3$one<-1 #R old syntax
+```
+
+3. We have nested functions here: `mutate(cut())`. We can always put a function within another one. 
+
+This bit of code says something like: Change my dataset D3. The change consists in creating a new variable called `age_grp` which is based on some breaks of the variable `age`. I tell R to use specific breaks for age. Then I asisgn labels to it. 
+
+```{r}
+D3 <- D3 %>%
+  mutate(age_grp = cut(age,
+                       breaks = c(0, 16, 45, 65, Inf),
+                       right = FALSE, #Intervals closed on the right
+                       labels = c("0-15", "16-44", "45-64", "65+")))
+```
+
+Here we do the same but with the old school syntax
+
+```{r}
+D3$age_grpoldschool <- ifelse(D3$age<=15, "0-15",
+                              ifelse(D3$age>=16 & D3$age<=44, "16-44",
+                                     ifelse(D3$age>=45 & D3$age<=64, "45-64", "65+")))
+```
+
+Check if this went well
+
+```{r}
+table(D3$age_grp)
+table(D3$age_grpoldschool)
+```
+
+What if you want 10 age groups. 
+
+This `breaks = seq(0, 100, 10)` simply is a clever way to create a sequence of numbers: [1]   0  10  20  30  40  50  60  70  80  90 100
+
+```{r}
+# Create 10-year age groups
+D3 <- D3 %>%
+  mutate(age_grp10 = cut(age, 
+                         breaks = seq(0, 100, 10), 
+                         right = FALSE,
+                         labels = c("0-9", "10-19", "20-29", "30-39", "40-49", 
+                                   "50-59", "60-69", "70-79", "80-89", "90-99")))
+```
+
+
+## Prettier tables with the package `descr`
+
+```{r}
+# Remember to install it
+library(descr)
+options(scipen = 999) # disable scientific notation
+freq(D3$age_grp10, plot=FALSE)
+```
+
+## Merge/combining files
+
+Sometimes you have data sets with common variables. the function `left_join()` from the `dplyr` package. 
+
+We will merge the sampling weights with the health data D3. That is, D3 and D4
+
+```{r}
+names(D3)
+names(D4)
+```
+
+How can we tell R to merge the files by a common id. Well, first you need to find it: "interview__key"
+
+If you notice, D3 is individual and D4 is household-leve
+
+```{r}
+head(D3)
+head(D4)
+```
+
+Now we can merge them: 
+
+```{r}
+D <- left_join(D3, D4, by = c("interview__key"))
+```
+
+Now we can explore the result:
+
+```{r}
+# Display variable names
+names(D)
+
+# Show structure with labels
+str(D)
+
+# Display variable labels
+var_label(D)
+
+# Preview first few rows
+head(D)
+```
+
+
+# Practice
+
+For all R inputs remember to create
+
+
+## Task 1:
+
+
+1. Create in D a new age variable with three groups 0-20, 21-64, ,65+
+2. Tabulate the new age_grp variable with `freq`. 
+
+## Task 2:
+
+1. Load the "h12_assets.dta" file
+2. Merge with `left_join` the "h12_assets.dta" with D. Note that this is a household-level data so you only need "interview__key".
+3. Find the variable of refrigerator and compute/tell the proportion of people with refrigerator  
+
+
+

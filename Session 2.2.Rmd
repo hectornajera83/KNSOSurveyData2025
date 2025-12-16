@@ -1,0 +1,137 @@
+---
+title: "Introduction to the survey Package in R"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Introduction
+
+This note introduces the computation of basic statistics from survey data. It focuses on the importance of using sampling weights for bias correction. The note shows examples for continous and categorical variables. 
+
+# Packages needed for this and the following sessions
+
+```{r load-packages}
+# Install if needed
+# install.packages("survey")
+
+# Load the package
+library(haven)
+library(survey)
+library(ggplot2)
+library(dplyr)
+library(labelled)
+library(descr)
+```
+
+# Data sets
+
+We will use the health, assests and consumption data for this note. 
+
+```{r}
+D3 <- read_dta("p3_Health.dta")
+Da <- read_dta("h12_assets.dta")
+DE <- read_dta("kir_consumption_agg_final.dta") %>% select(interview__key,  fweight, cons_total)
+```
+
+Merging the files with left_join
+
+```{r}
+Ds <- left_join(D3, Da, by = c("interview__key"))
+Ds <- left_join(Ds, DE, by = c("interview__key"))
+```
+
+# Computing basic descriptives with and without weights
+
+We will use the function `freq()` from the `descr` package to tabulate the proportion of people with refrigerator. 
+
+```{r}
+freq(Ds$h1201__7)
+```
+
+The `freq()` function allows integrating sampling weights but first we need to find them:
+
+```{r}
+names(Ds)
+```
+
+We note that the sampling weights are called `fweight`. To use them we just simply add `Ds$fweight`. Becuase we will focus on the numbers, the argument `plot=F` will prevent displaying the plot.  
+
+```{r}
+freq(Ds$h1201__7, Ds$fweight, plot=F)
+```
+
+## Crosstabulations
+
+Crosstabulation are one of the most used descriptive statistics in survey data analysis. These involve the tabulation of two categorical variables. The function `crosstab()` from the `descr` package performs simple crosstabulations
+
+```{r}
+crosstab(Ds$sex, Ds$h1201__7)
+```
+
+One problem with the table above are the labels. We know that Ds$h1201__7==1 means having refrigerator. We will assign labels with the `labelled()` function. 
+
+```{r}
+Ds$h1201__7 <- labelled(Ds$h1201__7, 
+                        labels = c("Lacks" = 0, "Has" = 1))
+crosstab(as_factor(Ds$sex), as_factor(Ds$h1201__7), plot=F)
+```
+
+One problem of the above table is that it simply shows the absolute numbers and often we are interested in getting the proportions by row as we would like to compare the proportions by gender. 
+
+```{r}
+crosstab(as_factor(Ds$sex), as_factor(Ds$h1201__7), prop.r=T)
+```
+
+Now, to include the sampling weights, we simply include this option `w=Ds$fweight)`. In this case make little difference. 
+
+```{r}
+crosstab(as_factor(Ds$sex), as_factor(Ds$h1201__7), prop.r=T, w=Ds$fweight, plot=F)
+```
+
+To show a better example we will use the `Ds$Hearing` variable.
+
+```{r}
+freq(as_factor(Ds$Hearing))
+freq(as_factor(Ds$Walking))
+```
+
+Now with weights
+
+```{r}
+freq(as_factor(Ds$Hearing), Ds$fweight)
+freq(as_factor(Ds$Walking), Ds$fweight)
+```
+
+
+## Weightted continous variables
+
+For the case of continous variables we often are interested in computing avergaes of measures of dispersion. 
+
+```{r}
+mean(Ds$age)
+```
+
+The function `weighted.mean()` function is a simple way to introduce weighted computations of the mean. 
+
+```{r}
+weighted.mean(Ds$age, Ds$fweight)
+```
+
+OK but what are we missing? Where is the uncertainty
+
+# Practice:
+
+1. Compute the unweighted and weighted mean of Ds$cons_total
+2. Compute the unweighted and weighted proportions of sex, age_grp5
+3. Compute the unweighted and weighted crosstabulations of sex with THE PREVIOUSLY CREATED GROUPS  0-20, 21-64, ,65+
+
