@@ -1,0 +1,332 @@
+---
+title: "Introduction to the survey Package in R"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Introduction
+
+## What is the survey Package?
+
+The `survey` package in R is designed to analyze data from **complex survey designs**. Many real-world datasets come from surveys that use:
+
+- **Weights**: Not all respondents represent the same number of people in the population
+- **Stratification**: The population is divided into groups (strata), and samples are drawn from each
+- **Clustering**: Sampling units are groups (e.g., schools, households, districts) rather than individuals
+
+If you analyze survey data using standard statistical methods (like `mean()` or `lm()`), you'll get **incorrect results** because these methods assume simple random sampling.
+
+## Why Do We Need It?
+
+**Example 1 - Clustering:** Suppose you want to survey students but instead of randomly selecting individual students nationwide, you randomly select 50 schools and survey all students in those schools. Students within the same school are more similar to each other than students from different schools, which affects your standard errors.
+
+**Example 2 - Stratification:** You survey voters but want to ensure adequate representation from each state. You sample different numbers from each state based on population, then need weights to get accurate national estimates.
+
+**Example 3 - Weights:** You conduct a phone survey but younger people are less likely to respond. You need to weight younger respondents more heavily to correct for this underrepresentation.
+
+## Installation and Loading
+
+First we need to load the Rpackages. If you have not installed all of them, please do. Remember thtat you can copy and paste them in the console so that you don't have to run the full code.
+
+```{r load-packages}
+# Install if needed
+# install.packages("survey")
+
+# Load the package
+library(haven)
+library(survey)
+library(ggplot2)
+library(dplyr)
+library(labelled)
+library(descr)
+```
+
+# Understanding Survey Design Objects
+
+The core of the `survey` package is the **survey design object**, created with `svydesign()`. This object contains both your data AND information about the survey design.
+
+## Key Components
+
+1. **ids**: Cluster identifiers (use `~1` for no clustering)
+2. **strata**: Stratification variables (optional)
+3. **weights**: Sampling weights (optional but usually important)
+4. **data**: Your dataset
+
+First we are going to load four stata files. Note something new:
+
+- This instruction `%>% select(interview__key, island_group, urbrur)` tells are that DC should include only the listed variables and not all of them. 
+
+```{r}
+# Load Stata files
+DC <- read_dta("s0_Cover.dta") %>% select(interview__key, island_group, urbrur)
+D1 <- read_dta("p1_Profile.dta")
+D3 <- read_dta("p3_Health.dta")
+DE <- read_dta("kir_consumption_agg_final.dta") %>% select(interview__key,  fweight, cons_total)
+```
+
+Now we are going to merge the files with left_join. For simplicy our data frame is going to be called `D`. 
+
+Note: We use `merge` to avoid the problem of duplicate variables. We simple prevent the function to create age.x and age.y because age is in both datasets. 
+
+```{r}
+D <- merge(D1, D3, by = c("interview__key", "hm_basic__id"), all.x = FALSE, suffixes = c("", "_d3")) %>%
+  select(-ends_with("_d3"))
+
+D <- left_join(D, DE, by = c("interview__key"))
+D <- left_join(D, DC, by = c("interview__key"))
+```
+
+Now we will simply preserve the labels of some variables that we are going to use later. The function `as_factor()` will be helpful to keep the labels of our variables. 
+
+```{r}
+D$island_factor <- as_factor(D$island)
+D$island_group_factor <- as_factor(D$island_group)
+```
+
+# Create Survey Design Object
+
+This is the first step when analysing data with the `survey` package: Set the structure of our survey: 
+
+```{r create-design}
+# Create the survey design
+# This tells R about the survey structure: weights and clustering
+design <- svydesign(
+  ids = ~interview__key,    # PSUs (households are clusters)
+  weights = ~fweight,        # Sampling weights
+  data = D
+)
+
+# Summary of design
+summary(design)
+
+# Number of PSUs (clusters)
+length(unique(D$interview__key))
+```
+
+# Part 1: Continuous Variables - Mean Age
+
+## Weighted vs Unweighted Comparison
+
+This is the most important comparison - it shows WHY weights matter!
+
+```{r weighted-vs-unweighted-mean}
+# CORRECT: Weighted estimate using survey design
+weighted_mean <- svymean(~age, design = design, na.rm = TRUE)
+
+# INCORRECT: Unweighted estimate (ignoring survey design)
+unweighted_mean <- mean(D$age, na.rm = TRUE)
+
+weighted_mean
+unweighted_mean
+```
+
+## Understanding Uncertainty: Confidence Intervals
+
+Proper uncertainty estimation requires accounting for the survey design.
+
+```{r confidence-intervals-mean}
+# 95% Confidence interval (correct)
+ci_weighted <- confint(weighted_mean)
+ci_weighted
+```
+
+# Part 2: Categorical Variables - Island Distribution
+
+## Weighted vs Unweighted Proportions
+
+```{r weighted-vs-unweighted-prop}
+# CORRECT: Weighted proportions
+weighted_prop <- svymean(~as_factor(island_group), design = design, na.rm = TRUE)
+
+# INCORRECT: Unweighted proportions
+unweighted_prop <- prop.table(table(as_factor(D$island_group)))
+
+weighted_prop
+unweighted_prop
+```
+
+## Uncertainty for Proportions
+
+```{r ci-proportions}
+# Confidence intervals for proportions
+ci_prop <- confint(weighted_prop)
+ci_prop
+```
+
+## Coefficient of variation
+
+## Coefficient of Variation (CV) for Island Estimates
+
+The CV measures relative precision - lower CV means more precise estimates. These are some suggested standards:
+
+- Excelent precision < 5
+- Good precision < 10
+- Unreliable >= 11
+
+```{r cv-proportions}
+# Calculate CV for each island proportion
+cv_prop <- cv(weighted_prop)
+cv_prop*100
+
+```
+
+## Coeficients of variation for all islands
+
+```{r}
+weighted_prop2 <- svymean(~as_factor(island), design = design, na.rm = TRUE)
+cv_prop2 <- cv(weighted_prop2)
+cv_prop2
+```
+
+# Bivariate Analysis: Crosstabulations
+
+Categorical with categorical
+
+## Proportions of Males and Females by Island
+```{r sex-by-island}
+# Calculate proportions of sex within each island
+sex_by_island <- svyby(~as_factor(sex), by = ~as_factor(island_group), 
+                       design = design, 
+                       FUN = svymean, 
+                       na.rm = TRUE)
+
+# Display results
+print(sex_by_island)
+```
+
+Coeficient of variation
+
+```{r}
+cv3<-cv(sex_by_island)
+cv3 * 100 
+```
+
+So, I can do any crosstabulation by sex... well not for certain categories. 
+
+```{r }
+sex_by_hearing <- svyby(~as_factor(sex), by = ~as_factor(Hearing), 
+                       design = design, 
+                       FUN = svymean, 
+                       na.rm = TRUE)
+cv4<-cv(sex_by_hearing)
+cv4*100
+```
+
+Let's see the CIs
+
+```{r}
+ci_prop4 <- confint(sex_by_hearing)
+ci_prop4
+```
+
+## Part 4: Mean Age by Sex
+
+Now continuous with categorical: means by category
+
+## Overall Mean Age by Sex
+
+```{r mean-age-by-sex}
+# Calculate mean age by sex
+age_by_sex <- svyby(~age, by = ~as_factor(sex), 
+                    design = design, 
+                    FUN = svymean, 
+                    na.rm = TRUE)
+ci_age_sex <- confint(age_by_sex)
+age_by_sex
+ci_age_sex 
+```
+
+# Advanced: Making pretty tables with flextable
+
+```{r}
+library(flextable)
+table_compact <- data.frame(
+  Sex = rownames(age_by_sex),
+  Mean_Age = sprintf("%.2f", age_by_sex$age),
+  SE = sprintf("%.2f", age_by_sex$se),
+  CI_95 = sprintf("[%.2f, %.2f]", ci_age_sex[, 1], ci_age_sex[, 2])
+)
+
+ft_compact <- flextable(table_compact) %>%
+  set_header_labels(
+    Sex = "Sex",
+    Mean_Age = "Mean Age",
+    SE = "Std. Error",
+    CI_95 = "95% CI"
+  ) %>%
+  autofit() %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  align(align = "center", part = "all") %>%
+  align(j = 1, align = "left", part = "body") %>%
+  add_footer_lines("Survey-weighted estimates accounting for cluster sampling")
+
+ft_compact
+```
+
+# Practice Exercise
+
+Try these on your own:
+
+1. Calculate the weighted and unweighted mean for the variable D$cons_total. Are these the same? 
+
+```{r echo=FALSE}
+mean(D$cons_total)
+weighted.mean(D$cons_total, D$fweight)
+```
+
+2. Calculate the coeficient of variation of D$cons_total by island: Can we produce reliable summaries of the mean by island?
+
+```{r echo=FALSE}
+wconstotal <- svymean(~cons_total, design = design, na.rm = TRUE)
+confint(wconstotal)
+cv(wconstotal)*100
+
+itwconstotal <- svyby(~cons_total, by = ~as_factor(island_group), 
+                       design = design, 
+                       FUN = svymean, 
+                       na.rm = TRUE)
+# Get confidence intervals and CV
+ci <- confint(itwconstotal)
+cv_values <- cv(itwconstotal) * 100
+
+# Combine into a data frame
+results_table <- data.frame(
+  Island = rownames(itwconstotal),
+  Mean = itwconstotal$cons_total,
+  SE = itwconstotal$se,
+  CI_Lower = ci[, 1],
+  CI_Upper = ci[, 2],
+  CV = cv_values
+)
+
+# Create flextable
+ft <- flextable(results_table) %>%
+  set_header_labels(
+    Island = "Island",
+    Mean = "Mean",
+    SE = "Standard Error",
+    CI_Lower = "CI Lower (95%)",
+    CI_Upper = "CI Upper (95%)",
+    CV = "CV (%)"
+  ) %>%
+  colformat_double(j = c("Mean", "SE", "CI_Lower", "CI_Upper", "CV"), 
+                   digits = 2) %>%
+  theme_vanilla() %>%
+  autofit()
+
+# Display the table
+ft
+```
+
+
